@@ -1,2 +1,3 @@
-#use this if you deploying bot as worker
-python3 bot.py
+#!/usr/bin/env bash
+set -e
+exec python3 bot.py

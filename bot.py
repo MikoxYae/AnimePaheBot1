@@ -22,11 +22,25 @@ app = Client(
 )
 
 
+def _log_background_task_errors(task: "asyncio.Task") -> None:
+    """Attach to any long-lived background task so a crash is always
+    logged instead of failing silently while the process keeps running."""
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        log.exception("Background task %r crashed", task.get_name(), exc_info=exc)
+
+
 async def _startup_checks() -> None:
     log.info("Verifying MongoDB connection...")
-    verify_connection()
-    ensure_indexes()
-    log.info("MongoDB is reachable and indexes are ready.")
+    # verify_connection()/ensure_indexes() use the synchronous PyMongo
+    # driver -- run them in a worker thread so they never block the
+    # asyncio event loop (and, by extension, Pyrogram's update dispatch).
+    await asyncio.to_thread(verify_connection)
+    await asyncio.to_thread(ensure_indexes)
+    log.info("MongoDB connected.")
+    log.info("MongoDB indexes ready.")
 
     if not ffprobe_available():
         log.warning(
@@ -43,8 +57,16 @@ async def main() -> None:
         raise SystemExit(1)
 
     await app.start()
-    download_queue.start()
-    log.info("Bot started.")
+    log.info("Pyrogram client connected.")
+    log.info("Plugins loaded.")
+
+    worker_tasks = download_queue.start()
+    for worker_task in worker_tasks:
+        worker_task.add_done_callback(_log_background_task_errors)
+    log.info("Queue workers started.")
+
+    me = await app.get_me()
+    log.info("Bot started as @%s (%s)", me.username, me.id)
 
     stop_event = asyncio.Event()
 

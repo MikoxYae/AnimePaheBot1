@@ -21,7 +21,7 @@ resolving instead of leaking memory or growing forever.
 """
 
 import secrets
-import time
+from datetime import datetime, timezone
 
 from pymongo import ASCENDING, MongoClient
 from pymongo.errors import PyMongoError
@@ -76,7 +76,11 @@ def _insert_session(col, payload: dict) -> str:
     """Insert a session document with a fresh unique short token as _id."""
     for _ in range(5):
         token = _new_token()
-        payload_with_id = {"_id": token, "created_at": time.time(), **payload}
+        payload_with_id = {
+            "_id": token,
+            "created_at": datetime.now(timezone.utc),
+            **payload,
+        }
         try:
             col.insert_one(payload_with_id)
             return token

@@ -1,0 +1,14 @@
+entrypoint = "bot.py"
+modules = ["python-3.12"]
+
+[nix]
+channel = "stable-24_05"
+
+[deployment]
+run = ["python3", "bot.py"]
+
+# Default Run button: start the Telegram bot worker.
+# app.py (optional Flask health-check) is NOT started by default -- run it
+# separately (e.g. `python3 app.py`) only if your host requires binding to
+# $PORT to keep the service alive alongside the bot.
+run = "python3 bot.py"

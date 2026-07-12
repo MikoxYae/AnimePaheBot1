@@ -81,12 +81,16 @@ class DownloadQueue:
         await self._queue.put(task)
         return True, position, None
 
-    def start(self, worker_count: Optional[int] = None) -> None:
+    def start(self, worker_count: Optional[int] = None) -> "list[asyncio.Task]":
         if self._workers:
-            return
+            return self._workers
         count = worker_count or MAX_CONCURRENT_DOWNLOADS
-        self._workers = [asyncio.create_task(self._worker(i)) for i in range(count)]
+        self._workers = [
+            asyncio.create_task(self._worker(i), name=f"download-queue-worker-{i}")
+            for i in range(count)
+        ]
         log.info("Started %d download queue worker(s)", count)
+        return self._workers
 
     async def stop(self) -> None:
         for worker in self._workers:
