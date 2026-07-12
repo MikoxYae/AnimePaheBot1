@@ -1,15 +1,18 @@
 #...For Bot Library...#
-pyrogram
+pyrogram==2.0.106
 #...For Web Scraping...#
 bs4==0.0.2
 #...For Handling Requests...#
 requests==2.31.0
 #...For Database...#
-pymongo
+pymongo==4.7.2
 #...For Enhancing Bot Performance...#
-tgcrypto
-#...For Grabbing Episode Information...#
-ffprobe
-#...For Web App (Remove Bellow 2 Requirements If You Deploy It As Worker)...#
-flask # Only if you deploy it as web service 
-gunicorn # Only if you deploy it as web service 
+tgcrypto==1.2.5
+#...Note: episode duration/width/height metadata requires the ffmpeg/ffprobe
+#...OS binary (installed separately -- see README.md). There is no working
+#...PyPI package named "ffprobe" that provides this binary, so it has been
+#...removed from here; the bot works without it, just without that metadata.
+#...For the optional health-check web endpoint (only needed if you run
+#...web.sh / app.py as well as the bot worker)...#
+flask==3.0.3
+gunicorn==22.0.0

@@ -2,50 +2,96 @@
 #..........Anyone Can Modify This As He Likes..........#
 #..........Just one requests do not remove my credit..........#
 
+"""Extract the final direct-download link from a Kwik link.
 
-import requests
+Kwik's obfuscated redirect script changes shape over time; this module
+validates every extracted field before using it and raises a controlled
+`ExtractionError` instead of crashing on missing regex groups.
+"""
+
 import re
 
+import requests
+
+from config import REQUEST_TIMEOUT_SECONDS
+
+s = requests.Session()
 
 
-s = requests.session()
+class ExtractionError(RuntimeError):
+    """Raised when the Kwik page cannot be parsed into a direct link."""
 
-def step_2(s, seperator, base=10):
+
+def step_2(data: str, separator: int, base: int = 10) -> str:
     mapped_range = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+/"
     numbers = mapped_range[0:base]
-    max_iter = 0
-    for index, value in enumerate(s[::-1]):
-        max_iter += int(value if value.isdigit() else 0) * (seperator**index)
-    mid = ''
-    while max_iter > 0:
-        mid = numbers[int(max_iter % base)] + mid
-        max_iter = (max_iter - (max_iter % base)) / base
-    return mid or '0'
+    total = 0
+    for index, value in enumerate(data[::-1]):
+        total += int(value if value.isdigit() else 0) * (separator ** index)
+    result = ""
+    while total > 0:
+        result = numbers[int(total % base)] + result
+        total = (total - (total % base)) // base
+    return result or "0"
 
-def step_1(data, key, load, seperator):
+
+def step_1(data: str, key: str, load: str, separator: str):
     payload = ""
     i = 0
-    seperator = int(seperator)
+    separator = int(separator)
     load = int(load)
     while i < len(data):
-        s = ""
-        while data[i] != key[seperator]:
-            s += data[i]
+        chunk = ""
+        while data[i] != key[separator]:
+            chunk += data[i]
             i += 1
         for index, value in enumerate(key):
-            s = s.replace(value, str(index))
-        payload += chr(int(step_2(s, seperator, 10)) - load)
+            chunk = chunk.replace(value, str(index))
+        payload += chr(int(step_2(chunk, separator, 10)) - load)
         i += 1
-    payload = re.findall(
-        r'action="([^\"]+)" method="POST"><input type="hidden" name="_token"\s+value="([^\"]+)', payload
-    )[0]
-    return payload
 
-def get_dl_link(link: str):
-    resp = s.get(link)
-    data, key, load, seperator = re.findall(r'\("(\S+)",\d+,"(\S+)",(\d+),(\d+)', resp.text)[0]
-    url, token = step_1(data=data, key=key, load=load, seperator=seperator)
-    data = {"_token": token}
-    headers = {'referer': link}
-    resp = s.post(url=url, data=data, headers=headers, allow_redirects=False)
-    return resp.headers["location"]
+    matches = re.findall(
+        r'action="([^"]+)" method="POST"><input type="hidden" name="_token"\s+value="([^"]+)',
+        payload,
+    )
+    if not matches:
+        raise ExtractionError("Kwik page layout has changed; could not find the download form.")
+    return matches[0]
+
+
+def get_dl_link(link: str) -> str:
+    try:
+        resp = s.get(link, timeout=REQUEST_TIMEOUT_SECONDS)
+        resp.raise_for_status()
+    except requests.exceptions.RequestException as exc:
+        raise ExtractionError(f"Could not reach Kwik: {exc}") from exc
+
+    lowered = resp.text.lower()
+    if "checking your browser" in lowered or "cloudflare" in lowered or "captcha" in lowered:
+        raise ExtractionError("Kwik returned a challenge/CAPTCHA page instead of the video.")
+
+    matches = re.findall(r'\("(\S+)",\d+,"(\S+)",(\d+),(\d+)', resp.text)
+    if not matches:
+        raise ExtractionError("Could not find the obfuscated script parameters on the Kwik page.")
+
+    data, key, load, separator = matches[0]
+    try:
+        url, token = step_1(data=data, key=key, load=load, separator=separator)
+    except IndexError as exc:
+        raise ExtractionError("Unexpected Kwik page structure.") from exc
+
+    try:
+        resp = s.post(
+            url=url,
+            data={"_token": token},
+            headers={"referer": link},
+            allow_redirects=False,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+    except requests.exceptions.RequestException as exc:
+        raise ExtractionError(f"Could not reach Kwik's download endpoint: {exc}") from exc
+
+    location = resp.headers.get("location")
+    if not location:
+        raise ExtractionError("Kwik did not return a redirect to the direct download link.")
+    return location

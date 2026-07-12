@@ -1,0 +1,21 @@
+[Unit]
+Description=AnimePaheBot (Telegram anime search/download bot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=animepahebot
+Group=animepahebot
+WorkingDirectory=/opt/animepahebot
+EnvironmentFile=/opt/animepahebot/.env
+ExecStart=/opt/animepahebot/venv/bin/python3 bot.py
+Restart=on-failure
+RestartSec=5
+# Hardening (loosen if your distro's systemd is older / these are unsupported).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target
