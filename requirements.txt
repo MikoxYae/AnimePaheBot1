@@ -1,5 +1,7 @@
 #...For Bot Library...#
 pyrogram==2.0.106
+#...For Loading .env Files...#
+python-dotenv==1.0.1
 #...For Web Scraping...#
 bs4==0.0.2
 #...For Handling Requests...#

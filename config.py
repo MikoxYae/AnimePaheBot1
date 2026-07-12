@@ -17,6 +17,13 @@ crashing later with a confusing traceback.
 import os
 import sys
 
+from dotenv import load_dotenv
+
+# Load variables from a .env file in the working directory, if present.
+# Real exported environment variables (e.g. from systemd's
+# EnvironmentFile=) always take priority over .env.
+load_dotenv(override=False)
+
 
 class ConfigError(RuntimeError):
     """Raised when required configuration is missing or invalid."""
